@@ -32,11 +32,14 @@ func main() {
 	}
 	defer pool.Close()
 
-	logger.Info("connected to postage")
+	logger.Info("connected to postgres")
+
+	profileRepo := repository.NewProfileRepositore(pool)
+	h := handler.New(profileRepo)
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           handler.NewRouter(),
+		Handler:           h.Router(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

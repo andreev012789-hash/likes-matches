@@ -1,19 +1,48 @@
 package handler
 
 import (
+	"context"
+	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/andreev012789-hash/likes-matches/internal/model"
 )
 
-func NewRouter() http.Handler {
+type ProfileStore interface {
+	CreateProfile(ctx context.Context, name string, age int, city string) (model.Profile, error)
+	GetProfile(ctx context.Context, id int64) (model.Profile, error)
+}
+
+type Handler struct {
+	profiles ProfileStore
+}
+
+func New(profiles ProfileStore) *Handler {
+	return &Handler{profiles: profiles}
+}
+
+func (h *Handler) Router() http.Handler {
 	r := chi.NewRouter()
 	r.Get("/health", health)
+	r.Post("/profiles", h.CreateProfile)
 	return r
 }
 
 func health(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"ok"}`))
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		slog.Error("write response", "error", err)
+	}
+}
+
+func writeError(w http.ResponseWriter, status int, msg string) {
+	writeJSON(w, status, map[string]string{"error": msg})
 }

@@ -1,5 +1,5 @@
 DATABASE_URL ?= postgres://likes:likes@localhost:5455/likes?sslmode=disable
-HTTP_ADDR ?= :8081
+HTTP_ADDR ?= :18080
 
 .PHONY: up down run migrate-up migrate-down migrate-status
 
