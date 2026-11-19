@@ -28,6 +28,7 @@ func (h *Handler) Router() http.Handler {
 	r := chi.NewRouter()
 	r.Get("/health", health)
 	r.Post("/profiles", h.CreateProfile)
+	r.Get("/profiles/{id}", h.GetProfile)
 	return r
 }
 
