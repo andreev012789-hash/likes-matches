@@ -2,9 +2,12 @@ package main
 
 import (
 	"log/slog"
+	"net/http"
 	"os"
+	"time"
 
 	"github.com/andreev012789-hash/likes-matches/internal/config"
+	"github.com/andreev012789-hash/likes-matches/internal/handler"
 )
 
 func main() {
@@ -16,6 +19,17 @@ func main() {
 	logger := NewLogger(cfg.LogLevel)
 	slog.SetDefault(logger)
 	logger.Info("starting", "http_addr", cfg.HTTPAddr)
+
+	srv := &http.Server{
+		Addr:              cfg.HTTPAddr,
+		Handler:           handler.NewRouter(),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	if err := srv.ListenAndServe(); err != nil {
+		logger.Error("server stopped", "error", err)
+		os.Exit(1)
+	}
 }
 
 func NewLogger(level string) *slog.Logger {
