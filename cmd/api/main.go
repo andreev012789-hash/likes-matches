@@ -32,7 +32,7 @@ func main() {
 	}
 	defer pool.Close()
 
-	logger.Info("connected of postage")
+	logger.Info("connected to postage")
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
