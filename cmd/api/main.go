@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/andreev012789-hash/likes-matches/internal/config"
 	"github.com/andreev012789-hash/likes-matches/internal/handler"
+	"github.com/andreev012789-hash/likes-matches/internal/repository"
 )
 
 func main() {
@@ -19,6 +21,18 @@ func main() {
 	logger := NewLogger(cfg.LogLevel)
 	slog.SetDefault(logger)
 	logger.Info("starting", "http_addr", cfg.HTTPAddr)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	pool, err := repository.NewPool(ctx, cfg.DatabaseURL)
+	if err != nil {
+		logger.Error("connect to postgres", "error", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	logger.Info("connected of postage")
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
