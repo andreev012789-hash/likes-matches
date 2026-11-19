@@ -1,7 +1,7 @@
 DATABASE_URL ?= postgres://likes:likes@localhost:5455/likes?sslmode=disable
 HTTP_ADDR ?= :8081
 
-.PHONY: up down run
+.PHONY: up down run migrate-up migrate-down migrate-status
 
 up:
 	docker compose up -d
@@ -11,3 +11,12 @@ down:
 
 run:
 	DATABASE_URL='$(DATABASE_URL)' HTTP_ADDR='$(HTTP_ADDR)' go run ./cmd/api
+
+migrate-up:
+	goose -dir migrations postgres '$(DATABASE_URL)' up
+
+migrate-down:
+	goose -dir migrations postgres '$(DATABASE_URL)' down
+
+migrate-status:
+	goose -dir migrations postgres '$(DATABASE_URL)' status
