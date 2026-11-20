@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/andreev012789-hash/likes-matches/internal/repository"
@@ -31,8 +32,15 @@ func (h *Handler) createLike(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "cannot like yourself")
 			return
 		}
+		if errors.Is(err, repository.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "profile not found")
+			return
+		}
+		slog.Error("create like", "error", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
 		writeError(w, http.StatusInternalServerError, "internal error")
 		return
+
 	}
 	writeJSON(w, http.StatusOK, result)
 
