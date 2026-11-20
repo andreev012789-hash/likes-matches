@@ -18,10 +18,15 @@ type ProfileStore interface {
 
 type Handler struct {
 	profiles ProfileStore
+	likes    LikeStore
 }
 
-func New(profiles ProfileStore) *Handler {
-	return &Handler{profiles: profiles}
+type LikeStore interface {
+	Like(ctx context.Context, fromID, toID int64) (model.LikeResult, error)
+}
+
+func New(profiles ProfileStore, likes LikeStore) *Handler {
+	return &Handler{profiles: profiles, likes: likes}
 }
 
 func (h *Handler) Router() http.Handler {
@@ -29,6 +34,7 @@ func (h *Handler) Router() http.Handler {
 	r.Get("/health", health)
 	r.Post("/profiles", h.CreateProfile)
 	r.Get("/profiles/{id}", h.GetProfile)
+	r.Post("/likes", h.createLike)
 	return r
 }
 

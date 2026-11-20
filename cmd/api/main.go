@@ -35,7 +35,8 @@ func main() {
 	logger.Info("connected to postgres")
 
 	profileRepo := repository.NewProfileRepositore(pool)
-	h := handler.New(profileRepo)
+	likeRepo := repository.NewLikeRepository(pool)
+	h := handler.New(profileRepo, likeRepo)
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
