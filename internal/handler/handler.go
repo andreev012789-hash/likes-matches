@@ -23,6 +23,7 @@ type Handler struct {
 
 type LikeStore interface {
 	Like(ctx context.Context, fromID, toID int64) (model.LikeResult, error)
+	Matches(ctx context.Context, userID int64) ([]model.Profile, error)
 }
 
 func New(profiles ProfileStore, likes LikeStore) *Handler {
@@ -35,6 +36,7 @@ func (h *Handler) Router() http.Handler {
 	r.Post("/profiles", h.CreateProfile)
 	r.Get("/profiles/{id}", h.GetProfile)
 	r.Post("/likes", h.createLike)
+	r.Get("/profiles/{id}/matches", h.getMatches)
 	return r
 }
 

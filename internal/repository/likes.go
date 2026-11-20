@@ -74,3 +74,29 @@ func (r *LikeRepository) Like(ctx context.Context, fromID, toID int64) (model.Li
 	}
 	return result, nil
 }
+
+func (r *LikeRepository) Matches(ctx context.Context, userID int64) ([]model.Profile, error) {
+	rows, err := r.pool.Query(ctx, `SELECT p.id, p.name, p.age, p.city, p.created_at
+		FROM matches m
+		JOIN profiles p ON p.id = CASE WHEN m.user_a = $1 THEN m.user_b ELSE m.user_a END
+		WHERE m.user_a = $1 OR m.user_b = $1
+		ORDER BY m.created_at DESC`,
+		userID)
+	if err != nil {
+		return nil, fmt.Errorf("query matches: %w", err)
+	}
+	defer rows.Close()
+
+	profiles := []model.Profile{}
+	for rows.Next() {
+		var p model.Profile
+		if err := rows.Scan(&p.ID, &p.Name, &p.Age, &p.City, &p.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan match: %w", err)
+		}
+		profiles = append(profiles, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate matches: %w", err)
+	}
+	return profiles, nil
+}
