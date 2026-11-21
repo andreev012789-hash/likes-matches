@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,7 +13,8 @@ import (
 )
 
 type fakeLikeStore struct {
-	likeFn func(ctx context.Context, fromID, toID int64) (model.LikeResult, error)
+	likeFn    func(ctx context.Context, fromID, toID int64) (model.LikeResult, error)
+	matchesFn func(ctx context.Context, userID int64) ([]model.Profile, error)
 }
 
 func (f *fakeLikeStore) Like(ctx context.Context, fromID, toID int64) (model.LikeResult, error) {
@@ -20,7 +22,7 @@ func (f *fakeLikeStore) Like(ctx context.Context, fromID, toID int64) (model.Lik
 }
 
 func (f *fakeLikeStore) Matches(ctx context.Context, userID int64) ([]model.Profile, error) {
-	return nil, nil
+	return f.matchesFn(ctx, userID)
 }
 
 func TestCreateLike(t *testing.T) {
@@ -80,6 +82,68 @@ func TestCreateLike(t *testing.T) {
 			h := New(nil, store)
 
 			req := httptest.NewRequest(http.MethodPost, "/likes", strings.NewReader(tt.body))
+			rec := httptest.NewRecorder()
+
+			h.Router().ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
+			}
+
+			if !strings.Contains(rec.Body.String(), tt.wantBody) {
+				t.Errorf("body = %q, want it to contain %q", rec.Body.String(), tt.wantBody)
+			}
+		})
+	}
+}
+
+func TestGetMatches(t *testing.T) {
+	tests := []struct {
+		name       string
+		path       string
+		matches    []model.Profile
+		matchesErr error
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name:       "has matches",
+			path:       "/profiles/1/matches",
+			matches:    []model.Profile{{ID: 2, Name: "Boris"}},
+			wantStatus: http.StatusOK,
+			wantBody:   `"name":"Boris"`,
+		},
+		{
+			name:       "no matches",
+			path:       "/profiles/1/matches",
+			matches:    []model.Profile{},
+			wantStatus: http.StatusOK,
+			wantBody:   `[]`,
+		},
+		{
+			name:       "invalid id",
+			path:       "/profiles/abc/matches",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "store error",
+			path:       "/profiles/1/matches",
+			matchesErr: errors.New("db is down"),
+			wantStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := &fakeLikeStore{
+				matchesFn: func(ctx context.Context, userID int64) ([]model.Profile, error) {
+					return tt.matches, tt.matchesErr
+				},
+			}
+
+			h := New(nil, store)
+
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			rec := httptest.NewRecorder()
 
 			h.Router().ServeHTTP(rec, req)
