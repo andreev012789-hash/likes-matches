@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/andreev012789-hash/likes-matches/internal/config"
@@ -44,10 +46,30 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	if err := srv.ListenAndServe(); err != nil {
-		logger.Error("server stopped", "error", err)
+	sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- srv.ListenAndServe()
+	}()
+
+	select {
+	case err := <-serverErr:
+		logger.Error("server failed", "error", err)
 		os.Exit(1)
+	case <-sigCtx.Done():
+		logger.Info("shutting down")
 	}
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		logger.Error("shutdown failed", "error", err)
+	}
+
+	logger.Info("server stopped")
 }
 
 func NewLogger(level string) *slog.Logger {
