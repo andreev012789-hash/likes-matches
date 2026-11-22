@@ -1,0 +1,10 @@
+.dockerignore
+.env*
+docker-compose.yml
+.git/
+.gitignore
+bin/
+*.out
+.DS_Store
+.vscode/
+Dockerfile

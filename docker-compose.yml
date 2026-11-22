@@ -1,4 +1,17 @@
 services:
+  api:
+    build: .
+    ports:
+      - "18080:18080"
+    environment:
+      HTTP_ADDR: ":18080"
+      DATABASE_URL: "postgres://likes:likes@postgres:5432/likes?sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
   postgres:
     image: postgres:16
     environment:
@@ -9,6 +22,21 @@ services:
       - "5455:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U likes -d likes"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+  migrate:
+    image: ghcr.io/kukymbr/goose-docker:latest
+    volumes:
+      - "./migrations:/migrations"
+    environment:
+      GOOSE_DRIVER: "postgres"
+      GOOSE_DBSTRING: "postgres://likes:likes@postgres:5432/likes?sslmode=disable"
+      GOOSE_COMMAND: "up"
+    depends_on:
+      postgres:
+        condition: service_healthy
 volumes:
   pgdata:
