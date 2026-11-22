@@ -24,8 +24,16 @@ func (h *Handler) CreateProfile(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid json")
 		return
 	}
-	if req.Name == "" || req.City == "" || req.Age < 18 {
-		writeError(w, http.StatusBadRequest, "name and city are required, age must be at least 18")
+	if req.Name == "" {
+		writeError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+	if req.City == "" {
+		writeError(w, http.StatusBadRequest, "city is required")
+		return
+	}
+	if req.Age < 18 {
+		writeError(w, http.StatusBadRequest, "age must be at least 18")
 		return
 	}
 
