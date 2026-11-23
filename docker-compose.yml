@@ -6,8 +6,11 @@ services:
     environment:
       HTTP_ADDR: ":18080"
       DATABASE_URL: "postgres://likes:likes@postgres:5432/likes?sslmode=disable"
+      REDIS_ADDR: "redis:6379"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
@@ -38,5 +41,16 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+
 volumes:
   pgdata:

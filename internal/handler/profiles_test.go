@@ -105,9 +105,9 @@ func TestCreateProfile(t *testing.T) {
 		},
 		{
 			name:       "invalid json",
-			body:   `{bad`,
+			body:       `{bad`,
 			wantStatus: http.StatusBadRequest,
-			wantBody: "invalid json",
+			wantBody:   "invalid json",
 		},
 		{
 			name:       "empty name",
@@ -130,14 +130,14 @@ func TestCreateProfile(t *testing.T) {
 		{
 			name:       "store error",
 			body:       `{"name":"Anna","age":25,"city":"Moscow"}`,
-			createErr:     errors.New("db is down"),
+			createErr:  errors.New("db is down"),
 			wantStatus: http.StatusInternalServerError,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store := &fakeProfileStore{
-				createFn: func(ctx context.Context,  name string, age int, city string) (model.Profile, error) {
+				createFn: func(ctx context.Context, name string, age int, city string) (model.Profile, error) {
 					return tt.profile, tt.createErr
 				},
 			}

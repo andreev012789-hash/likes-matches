@@ -12,6 +12,8 @@ import (
 	"github.com/andreev012789-hash/likes-matches/internal/config"
 	"github.com/andreev012789-hash/likes-matches/internal/handler"
 	"github.com/andreev012789-hash/likes-matches/internal/repository"
+
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -35,6 +37,14 @@ func main() {
 	defer pool.Close()
 
 	logger.Info("connected to postgres")
+
+	rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		logger.Error("connect to redis", "error", err)
+		os.Exit(1)
+	}
+	defer rdb.Close()
+	logger.Info("connected to redis")
 
 	profileRepo := repository.NewProfileRepositore(pool)
 	likeRepo := repository.NewLikeRepository(pool)

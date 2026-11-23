@@ -9,6 +9,7 @@ type Config struct {
 	HTTPAddr    string
 	DatabaseURL string
 	LogLevel    string
+	RedisAddr   string
 }
 
 func Load() (Config, error) {
@@ -16,6 +17,7 @@ func Load() (Config, error) {
 		HTTPAddr:    os.Getenv("HTTP_ADDR"),
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 		LogLevel:    os.Getenv("LOG_LEVEL"),
+		RedisAddr:   os.Getenv("REDIS_ADDR"),
 	}
 
 	if cfg.HTTPAddr == "" {
@@ -26,6 +28,9 @@ func Load() (Config, error) {
 	}
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "info"
+	}
+	if cfg.RedisAddr == "" {
+		cfg.RedisAddr = "localhost:6380"
 	}
 	return cfg, nil
 }
