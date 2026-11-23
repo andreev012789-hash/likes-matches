@@ -11,7 +11,7 @@ import (
 	"github.com/andreev012789-hash/likes-matches/internal/model"
 )
 
-var ErrNotFound = errors.New("Not found")
+var ErrNotFound = errors.New("not found")
 
 type ProfileRepository struct {
 	pool *pgxpool.Pool
