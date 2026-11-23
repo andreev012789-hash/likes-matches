@@ -15,7 +15,7 @@ jobs:
         with: 
           go-version-file: go.mod
       - run: go test -race ./...
-      
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -26,3 +26,9 @@ jobs:
       - uses: golangci/golangci-lint-action@v8
         with:
           version: latest
+  
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t likes-matches:ci .
