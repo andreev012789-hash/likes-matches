@@ -42,6 +42,7 @@ func TestCreateLike(t *testing.T) {
 		likeErr    error
 		wantStatus int
 		wantBody   string
+		blocked    bool
 	}{
 		{
 			name:       "self like",
@@ -78,6 +79,13 @@ func TestCreateLike(t *testing.T) {
 			wantStatus: http.StatusOK,
 			wantBody:   `"matched":true`,
 		},
+		{
+			name:       "rate limit exceeded",
+			body:       `{"from_id":1,"to_id":2}`,
+			blocked:    true,
+			wantStatus: http.StatusTooManyRequests,
+			wantBody:   `"too many likes"`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -88,7 +96,7 @@ func TestCreateLike(t *testing.T) {
 				},
 			}
 
-			h := New(nil, store, fakeLimiter{allow: true})
+			h := New(nil, store, fakeLimiter{allow: !tt.blocked})
 
 			req := httptest.NewRequest(http.MethodPost, "/likes", strings.NewReader(tt.body))
 			rec := httptest.NewRecorder()
