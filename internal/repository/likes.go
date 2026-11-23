@@ -31,7 +31,7 @@ func (r *LikeRepository) Like(ctx context.Context, fromID, toID int64) (model.Li
 	if err != nil {
 		return model.LikeResult{}, fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	_, err = tx.Exec(ctx, `INSERT INTO likes (from_id, to_id) VALUES ($1, $2) ON CONFLICT (from_id, to_id) DO NOTHING`, fromID, toID)
 	if err != nil {
