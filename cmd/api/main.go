@@ -11,6 +11,7 @@ import (
 
 	"github.com/andreev012789-hash/likes-matches/internal/config"
 	"github.com/andreev012789-hash/likes-matches/internal/handler"
+	"github.com/andreev012789-hash/likes-matches/internal/ratelimit"
 	"github.com/andreev012789-hash/likes-matches/internal/repository"
 
 	"github.com/redis/go-redis/v9"
@@ -46,9 +47,11 @@ func main() {
 	defer rdb.Close()
 	logger.Info("connected to redis")
 
+	limiter := ratelimit.New(rdb, 30, time.Minute)
+
 	profileRepo := repository.NewProfileRepositore(pool)
 	likeRepo := repository.NewLikeRepository(pool)
-	h := handler.New(profileRepo, likeRepo)
+	h := handler.New(profileRepo, likeRepo, limiter)
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,

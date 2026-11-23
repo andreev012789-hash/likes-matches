@@ -69,7 +69,7 @@ func TestGetProfile(t *testing.T) {
 				},
 			}
 
-			h := New(store, nil)
+			h := New(store, nil, nil)
 
 			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			rec := httptest.NewRecorder()
@@ -142,7 +142,7 @@ func TestCreateProfile(t *testing.T) {
 				},
 			}
 
-			h := New(store, nil)
+			h := New(store, nil, nil)
 
 			req := httptest.NewRequest(http.MethodPost, "/profiles", strings.NewReader(tt.body))
 			rec := httptest.NewRecorder()

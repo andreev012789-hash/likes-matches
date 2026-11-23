@@ -16,18 +16,23 @@ type ProfileStore interface {
 	GetProfile(ctx context.Context, id int64) (model.Profile, error)
 }
 
-type Handler struct {
-	profiles ProfileStore
-	likes    LikeStore
-}
-
 type LikeStore interface {
 	Like(ctx context.Context, fromID, toID int64) (model.LikeResult, error)
 	Matches(ctx context.Context, userID int64) ([]model.Profile, error)
 }
 
-func New(profiles ProfileStore, likes LikeStore) *Handler {
-	return &Handler{profiles: profiles, likes: likes}
+type Limiter interface {
+	Allow(ctx context.Context, userID int64) (bool, error)
+}
+
+type Handler struct {
+	profiles ProfileStore
+	likes    LikeStore
+	limiter  Limiter
+}
+
+func New(profiles ProfileStore, likes LikeStore, limiter Limiter) *Handler {
+	return &Handler{profiles: profiles, likes: likes, limiter: limiter}
 }
 
 func (h *Handler) Router() http.Handler {

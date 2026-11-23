@@ -29,6 +29,17 @@ func (h *Handler) createLike(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	allowed, err := h.limiter.Allow(r.Context(), req.FromID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "rate limiter unavailable")
+		return
+	}
+
+	if !allowed {
+		writeError(w, http.StatusTooManyRequests, "too many likes")
+		return
+	}
+
 	result, err := h.likes.Like(r.Context(), req.FromID, req.ToID)
 	if err != nil {
 		if errors.Is(err, repository.ErrSelfLike) {
