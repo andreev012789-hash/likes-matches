@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"time"
 
 	"github.com/segmentio/kafka-go"
 
@@ -17,9 +18,10 @@ type Producer struct {
 func New(brokers []string, topic string) *Producer {
 	return &Producer{
 		writer: &kafka.Writer{
-			Addr:     kafka.TCP(brokers...),
-			Topic:    topic,
-			Balancer: &kafka.Hash{},
+			Addr:         kafka.TCP(brokers...),
+			Topic:        topic,
+			Balancer:     &kafka.Hash{},
+			BatchTimeout: 10 * time.Millisecond,
 		},
 	}
 }
