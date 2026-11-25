@@ -6,18 +6,20 @@ import (
 )
 
 type Config struct {
-	HTTPAddr    string
-	DatabaseURL string
-	LogLevel    string
-	RedisAddr   string
+	HTTPAddr     string
+	DatabaseURL  string
+	LogLevel     string
+	RedisAddr    string
+	KafkaBrokers string
 }
 
 func Load() (Config, error) {
 	cfg := Config{
-		HTTPAddr:    os.Getenv("HTTP_ADDR"),
-		DatabaseURL: os.Getenv("DATABASE_URL"),
-		LogLevel:    os.Getenv("LOG_LEVEL"),
-		RedisAddr:   os.Getenv("REDIS_ADDR"),
+		HTTPAddr:     os.Getenv("HTTP_ADDR"),
+		DatabaseURL:  os.Getenv("DATABASE_URL"),
+		LogLevel:     os.Getenv("LOG_LEVEL"),
+		RedisAddr:    os.Getenv("REDIS_ADDR"),
+		KafkaBrokers: os.Getenv("KAFKA_BROKERS"),
 	}
 
 	if cfg.HTTPAddr == "" {
@@ -31,6 +33,9 @@ func Load() (Config, error) {
 	}
 	if cfg.RedisAddr == "" {
 		cfg.RedisAddr = "localhost:6380"
+	}
+	if cfg.KafkaBrokers == "" {
+		cfg.KafkaBrokers = "localhost:9094"
 	}
 	return cfg, nil
 }

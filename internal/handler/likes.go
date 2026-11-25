@@ -52,7 +52,6 @@ func (h *Handler) createLike(w http.ResponseWriter, r *http.Request) {
 		}
 		slog.Error("create like", "error", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
-		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 
 	}
