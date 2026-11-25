@@ -11,6 +11,7 @@ import (
 
 	"github.com/andreev012789-hash/likes-matches/internal/config"
 	"github.com/andreev012789-hash/likes-matches/internal/handler"
+	"github.com/andreev012789-hash/likes-matches/internal/producer"
 	"github.com/andreev012789-hash/likes-matches/internal/ratelimit"
 	"github.com/andreev012789-hash/likes-matches/internal/repository"
 
@@ -52,6 +53,13 @@ func main() {
 	}()
 
 	limiter := ratelimit.New(rdb, 30, time.Minute)
+
+	prod := producer.New([]string{cfg.KafkaBrokers}, "events")
+	defer func() {
+		if err := prod.Close(); err != nil {
+			slog.Error("kafka close failed", "error", err)
+		}
+	}()
 
 	profileRepo := repository.NewProfileRepositore(pool)
 	likeRepo := repository.NewLikeRepository(pool)
