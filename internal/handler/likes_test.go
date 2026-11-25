@@ -40,7 +40,7 @@ func (f fakeLimiter) Allow(ctx context.Context, userID int64) (bool, error) {
 	return f.allow, f.err
 }
 
-func (f fakePublisher) Publish(ctx context.Context, e event.Event) error {
+func (f *fakePublisher) Publish(ctx context.Context, e event.Event) error {
 	f.events = append(f.events, e)
 	return f.err
 }
@@ -54,6 +54,8 @@ func TestCreateLike(t *testing.T) {
 		wantStatus int
 		wantBody   string
 		blocked    bool
+		pubErr     error
+		wantEvents []string
 	}{
 		{
 			name:       "self like",
@@ -82,6 +84,7 @@ func TestCreateLike(t *testing.T) {
 			body:       `{"from_id":1,"to_id":2}`,
 			wantStatus: http.StatusOK,
 			wantBody:   `"matched":false`,
+			wantEvents: []string{event.TypeLikeCreated},
 		},
 		{
 			name:       "like with match",
@@ -89,6 +92,7 @@ func TestCreateLike(t *testing.T) {
 			likeResult: model.LikeResult{Matched: true, Match: &model.Match{UserA: 1, UserB: 2}},
 			wantStatus: http.StatusOK,
 			wantBody:   `"matched":true`,
+			wantEvents: []string{event.TypeLikeCreated, event.TypeMatchCreated},
 		},
 		{
 			name:       "rate limit exceeded",
@@ -96,6 +100,14 @@ func TestCreateLike(t *testing.T) {
 			blocked:    true,
 			wantStatus: http.StatusTooManyRequests,
 			wantBody:   `"too many likes"`,
+		},
+		{
+			name:       "kafka down does not fail request",
+			body:       `{"from_id":1,"to_id":2}`,
+			pubErr:     errors.New("kafka down"),
+			wantStatus: http.StatusOK,
+			wantBody:   `"matched":false`,
+			wantEvents: []string{event.TypeLikeCreated},
 		},
 	}
 
@@ -107,7 +119,7 @@ func TestCreateLike(t *testing.T) {
 				},
 			}
 
-			h := New(nil, store, fakeLimiter{allow: !tt.blocked}, fakePublisher{})
+			h := New(nil, store, fakeLimiter{allow: !tt.blocked}, &fakePublisher{})
 
 			req := httptest.NewRequest(http.MethodPost, "/likes", strings.NewReader(tt.body))
 			rec := httptest.NewRecorder()
@@ -169,7 +181,7 @@ func TestGetMatches(t *testing.T) {
 				},
 			}
 
-			h := New(nil, store, fakeLimiter{allow: true}, fakePublisher{})
+			h := New(nil, store, fakeLimiter{allow: true}, &fakePublisher{})
 
 			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			rec := httptest.NewRecorder()
