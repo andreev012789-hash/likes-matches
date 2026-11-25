@@ -44,8 +44,12 @@ func main() {
 		logger.Error("connect to redis", "error", err)
 		os.Exit(1)
 	}
-	defer rdb.Close()
-	logger.Info("connected to redis")
+
+	defer func() {
+		if err := rdb.Close(); err != nil {
+			slog.Error("redis close failed", "error", err)
+		}
+	}()
 
 	limiter := ratelimit.New(rdb, 30, time.Minute)
 
