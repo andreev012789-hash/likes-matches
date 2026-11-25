@@ -24,7 +24,7 @@ func New(brokers []string, topic string) *Producer {
 	}
 }
 
-func (p *Producer) Publich(ctx context.Context, e event.Event) error {
+func (p *Producer) Publish(ctx context.Context, e event.Event) error {
 	body, err := json.Marshal(e)
 	if err != nil {
 		return err

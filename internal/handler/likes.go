@@ -1,14 +1,17 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/andreev012789-hash/likes-matches/internal/event"
 	"github.com/andreev012789-hash/likes-matches/internal/repository"
 )
 
@@ -55,6 +58,10 @@ func (h *Handler) createLike(w http.ResponseWriter, r *http.Request) {
 		return
 
 	}
+	h.publish(event.New(event.TypeLikeCreated, req.FromID, req.ToID))
+	if result.Matched {
+		h.publish(event.New(event.TypeMatchCreated, req.FromID, req.ToID))
+	}
 	writeJSON(w, http.StatusOK, result)
 
 }
@@ -73,4 +80,13 @@ func (h *Handler) getMatches(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, matches)
+}
+
+func (h *Handler) publish(e event.Event) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	if err := h.publisher.Publish(ctx, e); err != nil {
+		slog.Error("publish event", "type", e.Type, "event_id", e.ID, "error", err)
+	}
 }

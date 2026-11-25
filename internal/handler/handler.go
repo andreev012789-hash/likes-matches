@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/andreev012789-hash/likes-matches/internal/event"
 	"github.com/andreev012789-hash/likes-matches/internal/model"
 )
 
@@ -25,14 +26,19 @@ type Limiter interface {
 	Allow(ctx context.Context, userID int64) (bool, error)
 }
 
-type Handler struct {
-	profiles ProfileStore
-	likes    LikeStore
-	limiter  Limiter
+type Publisher interface {
+	Publish(ctx context.Context, e event.Event) error
 }
 
-func New(profiles ProfileStore, likes LikeStore, limiter Limiter) *Handler {
-	return &Handler{profiles: profiles, likes: likes, limiter: limiter}
+type Handler struct {
+	profiles  ProfileStore
+	likes     LikeStore
+	limiter   Limiter
+	publisher Publisher
+}
+
+func New(profiles ProfileStore, likes LikeStore, limiter Limiter, publisher Publisher) *Handler {
+	return &Handler{profiles: profiles, likes: likes, limiter: limiter, publisher: publisher}
 }
 
 func (h *Handler) Router() http.Handler {

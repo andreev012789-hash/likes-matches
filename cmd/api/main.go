@@ -63,7 +63,7 @@ func main() {
 
 	profileRepo := repository.NewProfileRepositore(pool)
 	likeRepo := repository.NewLikeRepository(pool)
-	h := handler.New(profileRepo, likeRepo, limiter)
+	h := handler.New(profileRepo, likeRepo, limiter, prod)
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,

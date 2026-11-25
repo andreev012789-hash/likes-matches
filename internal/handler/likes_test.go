@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/andreev012789-hash/likes-matches/internal/event"
 	"github.com/andreev012789-hash/likes-matches/internal/model"
 	"github.com/andreev012789-hash/likes-matches/internal/repository"
 )
@@ -22,6 +23,11 @@ type fakeLimiter struct {
 	err   error
 }
 
+type fakePublisher struct {
+	err    error
+	events []event.Event
+}
+
 func (f *fakeLikeStore) Like(ctx context.Context, fromID, toID int64) (model.LikeResult, error) {
 	return f.likeFn(ctx, fromID, toID)
 }
@@ -32,6 +38,11 @@ func (f *fakeLikeStore) Matches(ctx context.Context, userID int64) ([]model.Prof
 
 func (f fakeLimiter) Allow(ctx context.Context, userID int64) (bool, error) {
 	return f.allow, f.err
+}
+
+func (f fakePublisher) Publish(ctx context.Context, e event.Event) error {
+	f.events = append(f.events, e)
+	return f.err
 }
 
 func TestCreateLike(t *testing.T) {
@@ -96,7 +107,7 @@ func TestCreateLike(t *testing.T) {
 				},
 			}
 
-			h := New(nil, store, fakeLimiter{allow: !tt.blocked})
+			h := New(nil, store, fakeLimiter{allow: !tt.blocked}, fakePublisher{})
 
 			req := httptest.NewRequest(http.MethodPost, "/likes", strings.NewReader(tt.body))
 			rec := httptest.NewRecorder()
@@ -158,7 +169,7 @@ func TestGetMatches(t *testing.T) {
 				},
 			}
 
-			h := New(nil, store, fakeLimiter{allow: true})
+			h := New(nil, store, fakeLimiter{allow: true}, fakePublisher{})
 
 			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			rec := httptest.NewRecorder()
