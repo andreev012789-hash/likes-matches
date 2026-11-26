@@ -13,6 +13,8 @@ import (
 
 	"github.com/andreev012789-hash/likes-matches/internal/config"
 	"github.com/andreev012789-hash/likes-matches/internal/event"
+	"github.com/andreev012789-hash/likes-matches/internal/repository"
+	"github.com/google/uuid"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -30,7 +32,26 @@ func commit(reader *kafka.Reader, msg kafka.Message) {
 	slog.Info("offset committed", "partition", msg.Partition, "offset", msg.Offset)
 }
 
-func worker(id int, reader *kafka.Reader, jobs <-chan kafka.Message, wg *sync.WaitGroup) {
+func markWithRetry(ctx context.Context, processed *repository.ProcessedRepository, eventID string) (bool, bool) {
+	for {
+		dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		isNew, err := processed.MarkProcessed(dbCtx, eventID)
+		cancel()
+
+		if err == nil {
+			return isNew, true
+		}
+		slog.Error("mark processed", "event_id", eventID, "error", err)
+
+		select {
+		case <-ctx.Done():
+			return false, false
+		case <-time.After(time.Second):
+		}
+	}
+}
+
+func worker(ctx context.Context, id int, reader *kafka.Reader, processed *repository.ProcessedRepository, jobs <-chan kafka.Message, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for msg := range jobs {
@@ -38,6 +59,24 @@ func worker(id int, reader *kafka.Reader, jobs <-chan kafka.Message, wg *sync.Wa
 		var e event.Event
 		if err := json.Unmarshal(msg.Value, &e); err != nil {
 			slog.Error("decode event", "partition", msg.Partition, "offset", msg.Offset, "error", err)
+			commit(reader, msg)
+			continue
+		}
+
+		if _, err := uuid.Parse(e.ID); err != nil {
+			slog.Error("invalid event id", "partition", msg.Partition, "offset", msg.Offset, "error", err)
+			commit(reader, msg)
+			continue
+		}
+
+		isNew, ok := markWithRetry(ctx, processed, e.ID)
+		if !ok {
+			for range jobs {
+			}
+			break
+		}
+		if !isNew {
+			slog.Info("duplicate skipped", "id", e.ID, "partition", msg.Partition, "offset", msg.Offset)
 			commit(reader, msg)
 			continue
 		}
@@ -65,6 +104,17 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	startCtx, startCancel := context.WithTimeout(ctx, 5*time.Second)
+	pool, err := repository.NewPool(startCtx, cfg.DatabaseURL)
+	startCancel()
+	if err != nil {
+		slog.Error("connect postgres", "error", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	processed := repository.NewProcessedRepository(pool)
+
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: []string{cfg.KafkaBrokers},
 		GroupID: "likes-consumer",
@@ -84,7 +134,7 @@ func main() {
 	for i := range channels {
 		channels[i] = make(chan kafka.Message, 10)
 		wg.Add(1)
-		go worker(i, reader, channels[i], &wg)
+		go worker(ctx, i, reader, processed, channels[i], &wg)
 	}
 
 	for {
