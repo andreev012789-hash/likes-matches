@@ -147,6 +147,7 @@ func main() {
 		}
 		channels[msg.Partition%workerCount] <- msg
 	}
+	stop()
 
 	for _, ch := range channels {
 		close(ch)
