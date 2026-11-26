@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/andreev012789-hash/likes-matches/internal/config"
 	"github.com/andreev012789-hash/likes-matches/internal/event"
@@ -17,7 +18,19 @@ import (
 
 const workerCount = 3
 
-func worker(id int, jobs <-chan kafka.Message, wg *sync.WaitGroup) {
+func commit(reader *kafka.Reader, msg kafka.Message) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := reader.CommitMessages(ctx, msg); err != nil {
+		slog.Error("commit offset", "partition", msg.Partition, "offset", msg.Offset, "error", err)
+		return
+	}
+
+	slog.Info("offset committed", "partition", msg.Partition, "offset", msg.Offset)
+}
+
+func worker(id int, reader *kafka.Reader, jobs <-chan kafka.Message, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for msg := range jobs {
@@ -25,6 +38,7 @@ func worker(id int, jobs <-chan kafka.Message, wg *sync.WaitGroup) {
 		var e event.Event
 		if err := json.Unmarshal(msg.Value, &e); err != nil {
 			slog.Error("decode event", "partition", msg.Partition, "offset", msg.Offset, "error", err)
+			commit(reader, msg)
 			continue
 		}
 
@@ -37,6 +51,7 @@ func worker(id int, jobs <-chan kafka.Message, wg *sync.WaitGroup) {
 			"partition", msg.Partition,
 			"offset", msg.Offset,
 		)
+		commit(reader, msg)
 	}
 	slog.Info("worker stopped", "worker", id)
 }
@@ -69,7 +84,7 @@ func main() {
 	for i := range channels {
 		channels[i] = make(chan kafka.Message, 10)
 		wg.Add(1)
-		go worker(i, channels[i], &wg)
+		go worker(i, reader, channels[i], &wg)
 	}
 
 	for {
