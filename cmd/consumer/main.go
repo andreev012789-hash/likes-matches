@@ -18,81 +18,101 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-const workerCount = 3
+const (
+	workerCount   = 3
+	batchSize     = 100
+	flushInterval = time.Second
 
-func commit(reader *kafka.Reader, msg kafka.Message) {
+	clickhouseAddr     = "localhost:9001"
+	clickhouseUser     = "likes"
+	clickhousePassword = "likes"
+)
+
+func commit(reader *kafka.Reader, msgs ...kafka.Message) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := reader.CommitMessages(ctx, msg); err != nil {
-		slog.Error("commit offset", "partition", msg.Partition, "offset", msg.Offset, "error", err)
+	if err := reader.CommitMessages(ctx, msgs...); err != nil {
+		slog.Error("commit offsets", "count", len(msgs), "error", err)
 		return
 	}
 
-	slog.Info("offset committed", "partition", msg.Partition, "offset", msg.Offset)
+	slog.Info("offsets committed", "count", len(msgs))
 }
 
-func markWithRetry(ctx context.Context, processed *repository.ProcessedRepository, eventID string) (bool, bool) {
+func flush(ctx context.Context, reader *kafka.Reader, store *repository.EventRepository, msgs []kafka.Message, events []event.Event) bool {
+	if len(msgs) == 0 {
+		return true
+	}
+
 	for {
-		dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		isNew, err := processed.MarkProcessed(dbCtx, eventID)
+		dbCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err := store.InsertBatch(dbCtx, events)
 		cancel()
 
 		if err == nil {
-			return isNew, true
+			break
 		}
-		slog.Error("mark processed", "event_id", eventID, "error", err)
+		slog.Error("insert batch", "size", len(events), "error", err)
 
 		select {
 		case <-ctx.Done():
-			return false, false
+			return false
 		case <-time.After(time.Second):
 		}
 	}
+
+	commit(reader, msgs...)
+	return true
 }
 
-func worker(ctx context.Context, id int, reader *kafka.Reader, processed *repository.ProcessedRepository, jobs <-chan kafka.Message, wg *sync.WaitGroup) {
+func worker(ctx context.Context, id int, reader *kafka.Reader, store *repository.EventRepository, jobs <-chan kafka.Message, wg *sync.WaitGroup) {
 	defer wg.Done()
+	defer slog.Info("worker stopped", "worker", id)
 
-	for msg := range jobs {
+	ticker := time.NewTicker(flushInterval)
+	defer ticker.Stop()
 
-		var e event.Event
-		if err := json.Unmarshal(msg.Value, &e); err != nil {
-			slog.Error("decode event", "partition", msg.Partition, "offset", msg.Offset, "error", err)
-			commit(reader, msg)
-			continue
-		}
+	var msgs []kafka.Message
+	var events []event.Event
 
-		if _, err := uuid.Parse(e.ID); err != nil {
-			slog.Error("invalid event id", "partition", msg.Partition, "offset", msg.Offset, "error", err)
-			commit(reader, msg)
-			continue
-		}
-
-		isNew, ok := markWithRetry(ctx, processed, e.ID)
-		if !ok {
-			for range jobs {
+	for {
+		select {
+		case msg, ok := <-jobs:
+			if !ok {
+				flush(ctx, reader, store, msgs, events)
+				return
 			}
-			break
-		}
-		if !isNew {
-			slog.Info("duplicate skipped", "id", e.ID, "partition", msg.Partition, "offset", msg.Offset)
-			commit(reader, msg)
-			continue
-		}
 
-		slog.Info("event received",
-			"worker", id,
-			"type", e.Type,
-			"id", e.ID,
-			"from_id", e.FromID,
-			"to_id", e.ToID,
-			"partition", msg.Partition,
-			"offset", msg.Offset,
-		)
-		commit(reader, msg)
+			msgs = append(msgs, msg)
+
+			var e event.Event
+			if err := json.Unmarshal(msg.Value, &e); err != nil {
+				slog.Error("decode event", "partition", msg.Partition, "offset", msg.Offset, "error", err)
+			} else if _, err := uuid.Parse(e.ID); err != nil {
+				slog.Error("invalid event id", "partition", msg.Partition, "offset", msg.Offset, "error", err)
+			} else {
+				events = append(events, e)
+			}
+
+			if len(msgs) >= batchSize {
+				if !flush(ctx, reader, store, msgs, events) {
+					for range jobs {
+					}
+					return
+				}
+				msgs, events = nil, nil
+			}
+
+		case <-ticker.C:
+			if !flush(ctx, reader, store, msgs, events) {
+				for range jobs {
+				}
+				return
+			}
+			msgs, events = nil, nil
+		}
 	}
-	slog.Info("worker stopped", "worker", id)
 }
 
 func main() {
@@ -105,15 +125,17 @@ func main() {
 	defer stop()
 
 	startCtx, startCancel := context.WithTimeout(ctx, 5*time.Second)
-	pool, err := repository.NewPool(startCtx, cfg.DatabaseURL)
+	store, err := repository.NewEventRepository(startCtx, clickhouseAddr, clickhouseUser, clickhousePassword)
 	startCancel()
 	if err != nil {
-		slog.Error("connect postgres", "error", err)
+		slog.Error("connect clickhouse", "error", err)
 		os.Exit(1)
 	}
-	defer pool.Close()
-
-	processed := repository.NewProcessedRepository(pool)
+	defer func() {
+		if err := store.Close(); err != nil {
+			slog.Error("close clickhouse", "error", err)
+		}
+	}()
 
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: []string{cfg.KafkaBrokers},
@@ -134,7 +156,7 @@ func main() {
 	for i := range channels {
 		channels[i] = make(chan kafka.Message, 10)
 		wg.Add(1)
-		go worker(ctx, i, reader, processed, channels[i], &wg)
+		go worker(ctx, i, reader, store, channels[i], &wg)
 	}
 
 	for {
