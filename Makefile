@@ -1,7 +1,7 @@
 DATABASE_URL ?= postgres://likes:likes@localhost:5455/likes?sslmode=disable
 HTTP_ADDR ?= :18080
 
-.PHONY: up down run migrate-up migrate-down migrate-status
+.PHONY: up down run migrate-up migrate-down migrate-status stats
 
 up:
 	docker compose up -d
@@ -20,3 +20,6 @@ migrate-down:
 
 migrate-status:
 	goose -dir migrations postgres '$(DATABASE_URL)' status
+
+stats:
+	docker compose exec -T clickhouse clickhouse-client --user likes --password likes --multiquery --format PrettyCompact < clickhouse/queries.sql
